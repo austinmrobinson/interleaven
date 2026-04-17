@@ -9,6 +9,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo-google-fonts/lora": "^0.4.2",
     "@expo/ui": "~55.0.11",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/datetimepicker": "8.6.0",
@@ -17,6 +18,7 @@
     "expo-blur": "~55.0.14",
     "expo-clipboard": "~55.0.13",
     "expo-constants": "~55.0.13",
+    "expo-dev-client": "~55.0.27",
     "expo-font": "~55.0.6",
     "expo-glass-effect": "~55.0.10",
     "expo-haptics": "~55.0.14",

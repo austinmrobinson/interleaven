@@ -9,6 +9,7 @@ import {
   FLOATING_TOOLBAR_HPADDING,
 } from '@/components/ui/FloatingToolbarShell';
 import { bookTheme } from '@/lib/theme/book-theme';
+import { bibleSerifFontSemiBold } from '@/lib/typography';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -296,8 +297,8 @@ const styles = StyleSheet.create({
   },
   addNoteLabel: {
     fontSize: 15,
-    fontWeight: '600',
     color: bookTheme.ink,
+    fontFamily: bibleSerifFontSemiBold,
   },
   dismissShell: {
     width: SELECTION_FLOATING_BAR_HEIGHT,

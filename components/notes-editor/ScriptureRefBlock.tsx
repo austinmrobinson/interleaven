@@ -2,7 +2,7 @@ import { StyleSheet, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatVerseReferenceForDisplay } from '@/lib/bible/format-verse-ref';
 import { bookTheme } from '@/lib/theme/book-theme';
-import { bookSerifFont } from '@/lib/typography';
+import { bookSerifFont, bibleSerifFontSemiBold, bibleSerifFontItalic } from '@/lib/typography';
 
 interface ScriptureRefBlockProps {
   book: string;
@@ -44,9 +44,8 @@ const styles = StyleSheet.create({
   },
   reference: {
     fontSize: 12,
-    fontWeight: '600',
     color: bookTheme.accent,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontSemiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -54,7 +53,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: bookTheme.ink,
-    fontFamily: bookSerifFont,
-    fontStyle: 'italic',
+    fontFamily: bibleSerifFontItalic,
   },
 });

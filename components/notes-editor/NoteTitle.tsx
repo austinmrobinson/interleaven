@@ -3,7 +3,7 @@ import { Platform, StyleSheet, View, Text, TextInput, Pressable, Modal } from "r
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { SymbolView } from "expo-symbols";
 import { bookTheme } from "@/lib/theme/book-theme";
-import { bookSerifFont } from "@/lib/typography";
+import { bibleSerifFontBold } from "@/lib/typography";
 
 interface NoteTitleProps {
   value: string;
@@ -105,14 +105,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
-    marginTop: 8,
   },
   input: {
     flex: 1,
     fontSize: 22,
-    fontWeight: "700",
     color: bookTheme.ink,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontBold,
     paddingVertical: 4,
   },
   dateRow: {

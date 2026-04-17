@@ -14,7 +14,7 @@ import { GlassView } from 'expo-glass-effect';
 import { ALL_BOOKS, getTestament } from '@/lib/bible/books';
 import { getChapterCount } from '@/lib/bible/data';
 import { bookTheme } from '@/lib/theme/book-theme';
-import { bookSerifFont } from '@/lib/typography';
+import { bookSerifFont, bibleSerifFontSemiBold, bibleSerifFontBold, bibleSerifFontMedium } from '@/lib/typography';
 
 interface BookPickerProps {
   visible: boolean;
@@ -296,9 +296,8 @@ const styles = StyleSheet.create({
   closeSymbol: { width: 14, height: 14 },
   largeTitle: {
     fontSize: 34,
-    fontWeight: '700',
     color: bookTheme.ink,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontBold,
     marginBottom: 12,
   },
   searchRow: {
@@ -319,9 +318,8 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     fontSize: 13,
-    fontWeight: '600',
     color: bookTheme.inkSecondary,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontSemiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     paddingHorizontal: 16,
@@ -370,7 +368,7 @@ const styles = StyleSheet.create({
   },
   bookTextActive: {
     color: bookTheme.accent,
-    fontWeight: '600',
+    fontFamily: bibleSerifFontSemiBold,
   },
   chapterCountText: {
     fontSize: 15,
@@ -405,8 +403,8 @@ const styles = StyleSheet.create({
   },
   chapterText: {
     fontSize: 16,
-    fontWeight: '500',
     color: bookTheme.ink,
+    fontFamily: bibleSerifFontMedium,
   },
   chapterTextActive: {
     color: bookTheme.accentOnFill,

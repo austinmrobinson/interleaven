@@ -8,10 +8,11 @@ export const BIBLE_READER_BOTTOM_CHROME_HEIGHT = 72;
 export const BIBLE_READER_BOTTOM_FADE_HEIGHT = BIBLE_READER_BOTTOM_CHROME_HEIGHT + 16;
 
 /**
- * Top padding under the floating header in `BibleReader` scroll content.
- * Keep in sync with `scrollContent.paddingTop` and selection margin strip `top`.
+ * Top padding under floating headers in both BibleReader and NotesEditor scroll content.
  */
-export const BIBLE_READER_SCROLL_TOP_INSET = 56;
+export const FLOATING_HEADER_TOP_INSET = 64;
+
+export const BIBLE_READER_SCROLL_TOP_INSET = FLOATING_HEADER_TOP_INSET;
 
 /** Height of the top fade over scripture (slight extension past header clearance). */
 export const BIBLE_READER_TOP_FADE_HEIGHT = BIBLE_READER_SCROLL_TOP_INSET + 16;

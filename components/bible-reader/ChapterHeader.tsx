@@ -2,7 +2,7 @@ import { StyleSheet, View, Text, Pressable } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { GlassView } from 'expo-glass-effect';
 import { bookTheme } from '@/lib/theme/book-theme';
-import { bookSerifFont } from '@/lib/typography';
+import { bibleSerifFontSemiBold } from '@/lib/typography';
 
 interface ChapterHeaderProps {
   book: string;
@@ -36,7 +36,8 @@ export function ChapterHeader({ book, chapter, verse, onPress, onSearchPress }: 
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingTop: 12,
+    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -52,9 +53,8 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
     color: bookTheme.ink,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontSemiBold,
   },
   searchButton: {
     width: 44,

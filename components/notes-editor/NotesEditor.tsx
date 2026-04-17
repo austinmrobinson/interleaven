@@ -46,8 +46,7 @@ import {
   noteContentToEditorHtml,
 } from "@/lib/notes/markdown";
 import { bookSerifFont } from "@/lib/typography";
-
-const FLOATING_BAR_CLEARANCE = 52;
+import { FLOATING_HEADER_TOP_INSET } from "@/lib/layout/bible-reader-chrome";
 const TOOLBAR_SCROLL_EXTRA = 8;
 
 const EDITOR_MIN_HEIGHT = 220;
@@ -129,7 +128,7 @@ export function NotesEditor() {
               ? NOTE_FORMAT_TOOLBAR_SCROLL_CLEARANCE + FLOATING_TOOLBAR_ABOVE_ANCHOR_GAP
               : 0;
           ensureViewInScrollWindow(scrollRef, scrollYRef, targetRef, {
-            insetTop: FLOATING_BAR_CLEARANCE,
+            insetTop: FLOATING_HEADER_TOP_INSET,
             keyboardTopY: keyboardTopYRef.current,
             accessoryAboveKeyboard,
           });
@@ -156,7 +155,7 @@ export function NotesEditor() {
           ? NOTE_FORMAT_TOOLBAR_SCROLL_CLEARANCE + FLOATING_TOOLBAR_ABOVE_ANCHOR_GAP
           : 0;
       ensureViewInScrollWindow(scrollRef, scrollYRef, editorBlockRef, {
-        insetTop: FLOATING_BAR_CLEARANCE,
+        insetTop: FLOATING_HEADER_TOP_INSET,
         keyboardTopY: keyboardTopYRef.current,
         accessoryAboveKeyboard,
       });
@@ -579,7 +578,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     flexDirection: "column",
-    paddingTop: FLOATING_BAR_CLEARANCE,
+    paddingTop: FLOATING_HEADER_TOP_INSET,
     paddingBottom: 24,
   },
   floatingOverlay: {

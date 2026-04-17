@@ -10,7 +10,7 @@ import { useSelection } from '@/contexts/SelectionContext';
 import { useNoteInsert } from '@/contexts/NoteInsertContext';
 import { useHighlights } from '@/lib/hooks/useHighlights';
 import { getChapterTitle } from '@/lib/bible/titles';
-import { bibleSerifFont } from '@/lib/typography';
+import { bibleSerifFont, bibleSerifFontBold } from '@/lib/typography';
 import { bookTheme } from '@/lib/theme/book-theme';
 import { ChapterHeader } from './ChapterHeader';
 import { ChapterNav } from './ChapterNav';
@@ -469,9 +469,8 @@ const styles = StyleSheet.create({
   },
   chapterTitle: {
     fontSize: 22,
-    fontWeight: '700',
     color: bookTheme.ink,
-    fontFamily: bibleSerifFont,
+    fontFamily: bibleSerifFontBold,
     paddingHorizontal: 20,
     paddingTop: 4,
     paddingBottom: 12,

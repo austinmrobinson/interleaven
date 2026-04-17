@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { WordToken } from './WordToken';
 import type { BibleVerse, Highlight } from '@/lib/bible/types';
-import { bibleSerifFont } from '@/lib/typography';
+import { bibleSerifFont, bibleSerifFontSemiBold } from '@/lib/typography';
 import { bookTheme } from '@/lib/theme/book-theme';
 import { BIBLE_READER_TEXT_HORIZONTAL_INSET } from '@/lib/layout/bible-reader-chrome';
 import {
@@ -97,9 +97,8 @@ const styles = StyleSheet.create({
   verseNumber: {
     fontSize: 11,
     lineHeight: 28,
-    fontWeight: '600',
     color: bookTheme.inkSecondary,
-    fontFamily: bibleSerifFont,
+    fontFamily: bibleSerifFontSemiBold,
     marginRight: 3,
     transform: [{ translateY: -4 }],
   },

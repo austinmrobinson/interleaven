@@ -12,7 +12,7 @@ import { SymbolView } from 'expo-symbols';
 import { GlassView } from 'expo-glass-effect';
 import type { Note } from '@/lib/bible/types';
 import { bookTheme } from '@/lib/theme/book-theme';
-import { bookSerifFont } from '@/lib/typography';
+import { bookSerifFont, bibleSerifFontSemiBold, bibleSerifFontBold } from '@/lib/typography';
 
 interface NotesPickerProps {
   visible: boolean;
@@ -256,9 +256,8 @@ const styles = StyleSheet.create({
   closeSymbol: { width: 14, height: 14 },
   largeTitle: {
     fontSize: 34,
-    fontWeight: '700',
     color: bookTheme.ink,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontBold,
     marginBottom: 12,
   },
   searchRow: {
@@ -279,9 +278,8 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     fontSize: 13,
-    fontWeight: '600',
     color: bookTheme.inkSecondary,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontSemiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     paddingHorizontal: 16,
@@ -305,9 +303,8 @@ const styles = StyleSheet.create({
   newNoteSymbol: { width: 20, height: 20 },
   newNoteLabel: {
     fontSize: 17,
-    fontWeight: '600',
     color: bookTheme.accent,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontSemiBold,
   },
   rowOuter: {
     backgroundColor: bookTheme.elevatedSurface,
@@ -334,9 +331,8 @@ const styles = StyleSheet.create({
   },
   noteTitle: {
     fontSize: 17,
-    fontWeight: '600',
     color: bookTheme.ink,
-    fontFamily: bookSerifFont,
+    fontFamily: bibleSerifFontSemiBold,
     marginBottom: 2,
   },
   noteTitleActive: {
