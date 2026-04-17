@@ -33,6 +33,9 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Bible data (downloaded via scripts/download-bible.js)
+assets/bible/kjv.json
+
 # typescript
 *.tsbuildinfo
 
