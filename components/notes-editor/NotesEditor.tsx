@@ -1,5 +1,6 @@
 import { useNoteInsert } from "@/contexts/NoteInsertContext";
 import { useCurrentNote, useAllNotes } from "@/lib/hooks/useNotes";
+import { deleteNote } from "@/lib/db/notes";
 import { useSplitPaneLayoutGeneration } from "@/components/split-pane/SplitPaneLayoutContext";
 import { useClampScrollWhenSplitChanges } from "@/lib/hooks/useClampScrollWhenSplitChanges";
 import { ensureViewInScrollWindow } from "@/lib/utils/ensure-view-in-scroll-window";
@@ -434,6 +435,12 @@ export function NotesEditor() {
     startNewNote();
   }, [startNewNote]);
 
+  const handleDeleteNote = useCallback(async (id: string) => {
+    await deleteNote(id);
+    await refreshNotes();
+    if (note?.id === id) startNewNote();
+  }, [note?.id, refreshNotes, startNewNote]);
+
   const showFormatToolbar =
     editorFocusedForToolbar && keyboardBottomOverlap > 0;
   const isKeyboardOpen = keyboardBottomOverlap > 0;
@@ -560,6 +567,7 @@ export function NotesEditor() {
         search={notesSearch}
         onSearchChange={setNotesSearch}
         onSelectNote={handleSelectNote}
+        onDeleteNote={handleDeleteNote}
         onNewNote={handleNewNote}
         onClose={() => setNotesPickerVisible(false)}
       />

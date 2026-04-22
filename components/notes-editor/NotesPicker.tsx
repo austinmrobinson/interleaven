@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,6 +10,14 @@ import {
 } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { GlassView } from 'expo-glass-effect';
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, {
+  useAnimatedStyle,
+  type SharedValue,
+  interpolate,
+} from 'react-native-reanimated';
 import type { Note } from '@/lib/bible/types';
 import { bookTheme } from '@/lib/theme/book-theme';
 import { bookSerifFont, bibleSerifFontSemiBold, bibleSerifFontBold } from '@/lib/typography';
@@ -21,6 +29,7 @@ interface NotesPickerProps {
   search: string;
   onSearchChange: (text: string) => void;
   onSelectNote: (id: string) => void;
+  onDeleteNote: (id: string) => void;
   onNewNote: () => void;
   onClose: () => void;
 }
@@ -65,6 +74,105 @@ function buildDateSections(notes: Note[]): NoteSection[] {
   return Array.from(map.entries()).map(([title, data]) => ({ title, data }));
 }
 
+const DELETE_ACTION_WIDTH = 80;
+
+function DeleteAction({
+  progress,
+  onDelete,
+}: {
+  progress: SharedValue<number>;
+  onDelete: () => void;
+}) {
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.5, 1], [0, 0.8, 1]),
+  }));
+
+  return (
+    <Animated.View style={[styles.deleteAction, animatedStyle]}>
+      <Pressable style={styles.deleteButton} onPress={onDelete}>
+        <SymbolView
+          name="trash"
+          size={20}
+          tintColor="#fff"
+          style={styles.deleteIcon}
+        />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function SwipeableNoteRow({
+  item,
+  isActive,
+  isFirst,
+  isLast,
+  onSelect,
+  onDelete,
+}: {
+  item: Note;
+  isActive: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
+  const swipeableRef = useRef<SwipeableMethods>(null);
+  const preview = stripHtml(item.content);
+
+  const renderRightActions = useCallback(
+    (progress: SharedValue<number>) => (
+      <DeleteAction
+        progress={progress}
+        onDelete={() => {
+          swipeableRef.current?.close();
+          onDelete();
+        }}
+      />
+    ),
+    [onDelete],
+  );
+
+  return (
+    <View
+      style={[
+        styles.rowOuter,
+        isFirst && styles.rowFirst,
+        isLast && styles.rowLast,
+      ]}
+    >
+      <ReanimatedSwipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        rightThreshold={40}
+        overshootRight={false}
+        friction={2}
+      >
+        <Pressable
+          style={({ pressed }) => [
+            styles.noteRow,
+            isActive && styles.noteRowActive,
+            pressed && styles.rowPressed,
+          ]}
+          onPress={onSelect}
+        >
+          <Text
+            style={[styles.noteTitle, isActive && styles.noteTitleActive]}
+            numberOfLines={1}
+          >
+            {item.title || 'Untitled'}
+          </Text>
+          {preview.length > 0 && (
+            <Text style={styles.notePreview} numberOfLines={1}>
+              {preview}
+            </Text>
+          )}
+        </Pressable>
+      </ReanimatedSwipeable>
+      {!isLast && <View style={styles.separator} />}
+    </View>
+  );
+}
+
 export function NotesPicker({
   visible,
   notes,
@@ -72,6 +180,7 @@ export function NotesPicker({
   search,
   onSearchChange,
   onSelectNote,
+  onDeleteNote,
   onNewNote,
   onClose,
 }: NotesPickerProps) {
@@ -178,46 +287,16 @@ export function NotesPicker({
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionHeader}>{section.title}</Text>
           )}
-          renderItem={({ item, index, section }) => {
-            const isActive = item.id === currentNoteId;
-            const isFirst = index === 0;
-            const isLast = index === section.data.length - 1;
-            const preview = stripHtml(item.content);
-            return (
-              <View
-                style={[
-                  styles.rowOuter,
-                  isFirst && styles.rowFirst,
-                  isLast && styles.rowLast,
-                ]}
-              >
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.noteRow,
-                    isActive && styles.noteRowActive,
-                    pressed && styles.rowPressed,
-                  ]}
-                  onPress={() => handleSelect(item.id)}
-                >
-                  <Text
-                    style={[
-                      styles.noteTitle,
-                      isActive && styles.noteTitleActive,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.title || 'Untitled'}
-                  </Text>
-                  {preview.length > 0 && (
-                    <Text style={styles.notePreview} numberOfLines={1}>
-                      {preview}
-                    </Text>
-                  )}
-                </Pressable>
-                {!isLast && <View style={styles.separator} />}
-              </View>
-            );
-          }}
+          renderItem={({ item, index, section }) => (
+            <SwipeableNoteRow
+              item={item}
+              isActive={item.id === currentNoteId}
+              isFirst={index === 0}
+              isLast={index === section.data.length - 1}
+              onSelect={() => handleSelect(item.id)}
+              onDelete={() => onDeleteNote(item.id)}
+            />
+          )}
           ListEmptyComponent={
             <Text style={styles.emptyText}>No notes found</Text>
           }
@@ -322,6 +401,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     minHeight: 44,
+    backgroundColor: bookTheme.elevatedSurface,
   },
   noteRowActive: {
     backgroundColor: bookTheme.accentMutedFill,
@@ -348,6 +428,19 @@ const styles = StyleSheet.create({
     backgroundColor: bookTheme.borderHairline,
     marginLeft: 16,
   },
+  deleteAction: {
+    width: DELETE_ACTION_WIDTH,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: DELETE_ACTION_WIDTH,
+  },
+  deleteIcon: { width: 20, height: 20 },
   emptyText: {
     fontSize: 15,
     color: bookTheme.inkTertiary,
