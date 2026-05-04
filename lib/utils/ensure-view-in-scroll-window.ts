@@ -60,3 +60,43 @@ export function ensureViewInScrollWindow(
     });
   });
 }
+
+/**
+ * Scrolls a ScrollView so a single Y point (in window coordinates) stays between
+ * `insetTop` and the keyboard (or bottom of the scroll view). Useful when
+ * targeting a caret position inside a larger content block.
+ */
+export function ensurePointInScrollWindow(
+  scrollRef: RefObject<ScrollView | null>,
+  scrollYRef: RefObject<number>,
+  windowY: number,
+  opts: EnsureViewInScrollWindowOptions,
+): void {
+  const scroll = scrollRef.current;
+  if (!scroll) return;
+
+  const accessory = opts.accessoryAboveKeyboard ?? 0;
+
+  (scroll as unknown as View).measureInWindow((_sx: number, sy: number, _sw: number, sh: number) => {
+    const visibleTop = sy + opts.insetTop;
+    let visibleBottom: number;
+    if (opts.keyboardTopY != null && opts.keyboardTopY > 0) {
+      visibleBottom = opts.keyboardTopY - accessory;
+    } else {
+      visibleBottom = sy + sh;
+    }
+
+    let delta = 0;
+    if (windowY > visibleBottom - EDGE_MARGIN) {
+      delta = windowY - (visibleBottom - EDGE_MARGIN);
+    } else if (windowY < visibleTop + EDGE_MARGIN) {
+      delta = windowY - (visibleTop + EDGE_MARGIN);
+    }
+
+    if (delta === 0) return;
+
+    const nextY = Math.max(0, scrollYRef.current + delta);
+    scroll.scrollTo({ y: nextY, animated: true });
+    scrollYRef.current = nextY;
+  });
+}

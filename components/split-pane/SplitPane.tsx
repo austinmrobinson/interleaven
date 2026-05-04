@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
+  useAnimatedReaction,
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
   runOnJS,
   runOnUI,
@@ -13,7 +13,12 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import type { ReactNode } from 'react';
 import { bookTheme } from '@/lib/theme/book-theme';
-import { SplitPaneLayoutGenerationContext } from './SplitPaneLayoutContext';
+import {
+  EditorBlurRefContext,
+  SplitPaneLayoutGenerationContext,
+  TopPaneAtSmallestSnapContext,
+  type EditorBlurHandler,
+} from './SplitPaneLayoutContext';
 
 const HANDLE_HEIGHT = 20;
 const MIN_PANE_HEIGHT = 120;
@@ -24,7 +29,40 @@ const MIN_PANE_HEIGHT = 120;
  */
 const KEYBOARD_OPEN_NOTES_RESERVE = 220;
 
-const SPRING = { damping: 22, stiffness: 220 };
+/**
+ * Snap points as top-pane (Bible) height fractions of total height. The set is
+ * symmetric so both panes have the same available sizes (15% / 33% / 50%):
+ * - top 0.15 → notes at 85%  (max notes)
+ * - top 0.33 → notes at 67%
+ * - top 0.50 → even split
+ * - top 0.67 → notes at 33%
+ * - top 0.85 → notes at 15%  (max bible)
+ * The default on first layout is the snap point closest to 0.5.
+ */
+export const SPLIT_SNAP_POINTS: readonly number[] = [0.15, 0.33, 0.5, 0.67, 0.85];
+
+/**
+ * When the notes editor is focused (keyboard about to open), ensure the notes
+ * pane is at least this fraction of the screen. Also the threshold at which
+ * dragging the handle downward will dismiss the keyboard.
+ */
+const KEYBOARD_OPEN_NOTES_MIN_FRACTION = 0.5;
+
+/**
+ * Fraction at or below which the top pane is considered "at smallest snap" for
+ * UI chrome purposes — halfway between the smallest snap and the next one.
+ * Falls back to the smallest snap if there's only one.
+ */
+const AT_SMALLEST_SNAP_FRACTION: number =
+  SPLIT_SNAP_POINTS.length >= 2
+    ? (SPLIT_SNAP_POINTS[0] + SPLIT_SNAP_POINTS[1]) / 2
+    : SPLIT_SNAP_POINTS[0];
+
+/** Flick-velocity threshold (px/s) above which we snap in the direction of travel. */
+const SNAP_VELOCITY_THRESHOLD = 420;
+
+const SNAP_MS = 220;
+const SNAP_EASING = Easing.out(Easing.cubic);
 
 const KEYBOARD_SPLIT_MS = Platform.OS === 'ios' ? 250 : 220;
 const KEYBOARD_SPLIT_EASING = Easing.out(Easing.cubic);
@@ -33,11 +71,73 @@ function minNotesPaneHeight(totalH: number, keyboardH: number): number {
   'worklet';
   const maxBottom = totalH - HANDLE_HEIGHT - MIN_PANE_HEIGHT;
   if (keyboardH <= 0) return MIN_PANE_HEIGHT;
-  const needed = keyboardH + KEYBOARD_OPEN_NOTES_RESERVE;
+  const keyboardNeed = keyboardH + KEYBOARD_OPEN_NOTES_RESERVE;
+  const halfScreen = totalH * KEYBOARD_OPEN_NOTES_MIN_FRACTION;
+  const needed = Math.max(keyboardNeed, halfScreen);
   return Math.min(
     maxBottom,
     Math.max(MIN_PANE_HEIGHT, needed),
   );
+}
+
+/**
+ * Resolve snap fractions to allowed pixel positions for the top pane,
+ * clamped to [MIN_PANE_HEIGHT, maxPos] and de-duplicated.
+ */
+function resolveSnapPositions(totalH: number, keyboardH: number): number[] {
+  'worklet';
+  const minBottom = minNotesPaneHeight(totalH, keyboardH);
+  const maxPos = totalH - HANDLE_HEIGHT - minBottom;
+  if (maxPos < MIN_PANE_HEIGHT) return [MIN_PANE_HEIGHT];
+  const out: number[] = [];
+  for (const frac of SPLIT_SNAP_POINTS) {
+    const target = Math.round(totalH * frac);
+    const clamped = Math.min(Math.max(target, MIN_PANE_HEIGHT), maxPos);
+    if (!out.some((v) => Math.abs(v - clamped) < 1)) out.push(clamped);
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+
+/** Pick the snap target given current position + velocity. Velocity biases direction. */
+function pickSnapTarget(
+  current: number,
+  velocity: number,
+  snaps: number[],
+): number {
+  'worklet';
+  if (snaps.length === 0) return current;
+  if (snaps.length === 1) return snaps[0];
+
+  if (Math.abs(velocity) >= SNAP_VELOCITY_THRESHOLD) {
+    if (velocity > 0) {
+      for (const s of snaps) if (s > current + 1) return s;
+      return snaps[snaps.length - 1];
+    } else {
+      for (let i = snaps.length - 1; i >= 0; i--) {
+        if (snaps[i] < current - 1) return snaps[i];
+      }
+      return snaps[0];
+    }
+  }
+
+  let best = snaps[0];
+  let bestDist = Math.abs(snaps[0] - current);
+  for (let i = 1; i < snaps.length; i++) {
+    const d = Math.abs(snaps[i] - current);
+    if (d < bestDist) {
+      best = snaps[i];
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+/** Initial snap: closest snap point to a 50/50 split. */
+function pickInitialSnap(totalH: number): number {
+  'worklet';
+  const snaps = resolveSnapPositions(totalH, 0);
+  return pickSnapTarget(totalH * 0.5, 0, snaps);
 }
 
 interface SplitPaneProps {
@@ -49,7 +149,9 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
   const { height: windowHeight } = useWindowDimensions();
   const didInitialLayout = useRef(false);
   const [layoutGeneration, setLayoutGeneration] = useState(0);
+  const [topAtSmallest, setTopAtSmallest] = useState(false);
   const lastThrottledBumpRef = useRef(0);
+  const editorBlurRef = useRef<EditorBlurHandler>(null);
 
   const bumpLayoutGeneration = useCallback(() => {
     setLayoutGeneration((n) => n + 1);
@@ -63,12 +165,24 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
   }, [bumpLayoutGeneration]);
 
   const totalHeight = useSharedValue(windowHeight);
-  const splitPosition = useSharedValue(
-    Math.min(windowHeight * 0.55, windowHeight - MIN_PANE_HEIGHT - HANDLE_HEIGHT)
-  );
+  const splitPosition = useSharedValue(pickInitialSnap(windowHeight));
   const startPosition = useSharedValue(0);
   const savedSplitForKeyboard = useSharedValue(-1);
   const keyboardHeightSV = useSharedValue(0);
+  const didDismissKeyboardInGesture = useSharedValue(false);
+
+  useAnimatedReaction(
+    () => {
+      const total = totalHeight.value;
+      if (total <= 0) return false;
+      return splitPosition.value / total <= AT_SMALLEST_SNAP_FRACTION;
+    },
+    (isAtSmallest, prev) => {
+      if (prev !== null && isAtSmallest === prev) return;
+      runOnJS(setTopAtSmallest)(isAtSmallest);
+    },
+    [],
+  );
 
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -79,15 +193,7 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
       keyboardHeightSV.value = keyboardH;
       runOnUI((kbHeight: number, durationMs: number) => {
         'worklet';
-        const maxBottom =
-          totalHeight.value - HANDLE_HEIGHT - MIN_PANE_HEIGHT;
-        const neededBottom = Math.min(
-          maxBottom,
-          Math.max(
-            MIN_PANE_HEIGHT,
-            kbHeight + KEYBOARD_OPEN_NOTES_RESERVE,
-          ),
-        );
+        const neededBottom = minNotesPaneHeight(totalHeight.value, kbHeight);
         const currentBottom =
           totalHeight.value - splitPosition.value - HANDLE_HEIGHT;
         if (currentBottom < neededBottom) {
@@ -128,40 +234,72 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
     };
   }, [bumpLayoutGeneration, savedSplitForKeyboard, splitPosition, totalHeight]);
 
-  function triggerHaptic() {
+  const triggerHaptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }
+  }, []);
 
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      startPosition.value = splitPosition.value;
-    })
-    .onUpdate((e) => {
-      const minBottom = minNotesPaneHeight(
-        totalHeight.value,
-        keyboardHeightSV.value,
-      );
-      const maxPos = totalHeight.value - HANDLE_HEIGHT - minBottom;
-      const newPosition = startPosition.value + e.translationY;
-      const clamped = Math.min(Math.max(newPosition, MIN_PANE_HEIGHT), maxPos);
-      splitPosition.value = clamped;
-      runOnJS(throttledBumpLayoutGeneration)();
-    })
-    .onEnd(() => {
-      const minBottom = minNotesPaneHeight(
-        totalHeight.value,
-        keyboardHeightSV.value,
-      );
-      const maxPos = totalHeight.value - HANDLE_HEIGHT - minBottom;
-      if (splitPosition.value <= MIN_PANE_HEIGHT + 10) {
-        splitPosition.value = withSpring(MIN_PANE_HEIGHT);
-        runOnJS(triggerHaptic)();
-      } else if (splitPosition.value >= maxPos - 10) {
-        splitPosition.value = withSpring(maxPos);
-        runOnJS(triggerHaptic)();
-      }
-      runOnJS(bumpLayoutGeneration)();
-    });
+  const dismissKeyboard = useCallback(() => {
+    editorBlurRef.current?.();
+    Keyboard.dismiss();
+  }, []);
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .onStart(() => {
+          startPosition.value = splitPosition.value;
+          didDismissKeyboardInGesture.value = false;
+          savedSplitForKeyboard.value = -1;
+        })
+        .onUpdate((e) => {
+          const maxPos =
+            totalHeight.value - HANDLE_HEIGHT - MIN_PANE_HEIGHT;
+          const newPosition = startPosition.value + e.translationY;
+          const clamped = Math.min(Math.max(newPosition, MIN_PANE_HEIGHT), maxPos);
+          splitPosition.value = clamped;
+          if (
+            keyboardHeightSV.value > 0 &&
+            !didDismissKeyboardInGesture.value &&
+            clamped > totalHeight.value * KEYBOARD_OPEN_NOTES_MIN_FRACTION
+          ) {
+            didDismissKeyboardInGesture.value = true;
+            // Zero the shared value immediately so the subsequent `onEnd` snap
+            // resolution doesn't use the pre-dismiss keyboard reserve and snap
+            // the pane back into the keyboard-constrained range. The JS-side
+            // keyboard hide event will still fire and reconcile things.
+            keyboardHeightSV.value = 0;
+            runOnJS(dismissKeyboard)();
+          }
+          runOnJS(throttledBumpLayoutGeneration)();
+        })
+        .onEnd((e) => {
+          const snaps = resolveSnapPositions(
+            totalHeight.value,
+            keyboardHeightSV.value,
+          );
+          const target = pickSnapTarget(splitPosition.value, e.velocityY, snaps);
+          if (Math.abs(target - splitPosition.value) > 0.5) {
+            splitPosition.value = withTiming(target, {
+              duration: SNAP_MS,
+              easing: SNAP_EASING,
+            });
+            runOnJS(triggerHaptic)();
+          }
+          runOnJS(bumpLayoutGeneration)();
+        }),
+    [
+      bumpLayoutGeneration,
+      didDismissKeyboardInGesture,
+      dismissKeyboard,
+      keyboardHeightSV,
+      savedSplitForKeyboard,
+      splitPosition,
+      startPosition,
+      throttledBumpLayoutGeneration,
+      totalHeight,
+      triggerHaptic,
+    ],
+  );
 
   const topPaneStyle = useAnimatedStyle(() => ({
     height: splitPosition.value,
@@ -173,6 +311,8 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
 
   return (
     <SplitPaneLayoutGenerationContext.Provider value={layoutGeneration}>
+      <TopPaneAtSmallestSnapContext.Provider value={topAtSmallest}>
+      <EditorBlurRefContext.Provider value={editorBlurRef}>
       <View
         style={styles.container}
         onLayout={(e) => {
@@ -182,7 +322,7 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
           const maxPos = h - MIN_PANE_HEIGHT - HANDLE_HEIGHT;
           if (!didInitialLayout.current) {
             didInitialLayout.current = true;
-            splitPosition.value = Math.min(h * 0.55, maxPos);
+            splitPosition.value = pickInitialSnap(h);
           } else if (splitPosition.value > maxPos) {
             splitPosition.value = maxPos;
           }
@@ -204,6 +344,8 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
           {bottomPane}
         </Animated.View>
       </View>
+      </EditorBlurRefContext.Provider>
+      </TopPaneAtSmallestSnapContext.Provider>
     </SplitPaneLayoutGenerationContext.Provider>
   );
 }
