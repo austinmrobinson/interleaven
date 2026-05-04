@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -178,7 +178,7 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
       return splitPosition.value / total <= AT_SMALLEST_SNAP_FRACTION;
     },
     (isAtSmallest, prev) => {
-      if (isAtSmallest === prev) return;
+      if (prev !== null && isAtSmallest === prev) return;
       runOnJS(setTopAtSmallest)(isAtSmallest);
     },
     [],
@@ -234,52 +234,72 @@ export function SplitPane({ topPane, bottomPane }: SplitPaneProps) {
     };
   }, [bumpLayoutGeneration, savedSplitForKeyboard, splitPosition, totalHeight]);
 
-  function triggerHaptic() {
+  const triggerHaptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }
+  }, []);
 
-  function dismissKeyboard() {
+  const dismissKeyboard = useCallback(() => {
     editorBlurRef.current?.();
     Keyboard.dismiss();
-  }
+  }, []);
 
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      startPosition.value = splitPosition.value;
-      didDismissKeyboardInGesture.value = false;
-      savedSplitForKeyboard.value = -1;
-    })
-    .onUpdate((e) => {
-      const maxPos =
-        totalHeight.value - HANDLE_HEIGHT - MIN_PANE_HEIGHT;
-      const newPosition = startPosition.value + e.translationY;
-      const clamped = Math.min(Math.max(newPosition, MIN_PANE_HEIGHT), maxPos);
-      splitPosition.value = clamped;
-      if (
-        keyboardHeightSV.value > 0 &&
-        !didDismissKeyboardInGesture.value &&
-        clamped > totalHeight.value * KEYBOARD_OPEN_NOTES_MIN_FRACTION
-      ) {
-        didDismissKeyboardInGesture.value = true;
-        runOnJS(dismissKeyboard)();
-      }
-      runOnJS(throttledBumpLayoutGeneration)();
-    })
-    .onEnd((e) => {
-      const snaps = resolveSnapPositions(
-        totalHeight.value,
-        keyboardHeightSV.value,
-      );
-      const target = pickSnapTarget(splitPosition.value, e.velocityY, snaps);
-      if (Math.abs(target - splitPosition.value) > 0.5) {
-        splitPosition.value = withTiming(target, {
-          duration: SNAP_MS,
-          easing: SNAP_EASING,
-        });
-        runOnJS(triggerHaptic)();
-      }
-      runOnJS(bumpLayoutGeneration)();
-    });
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .onStart(() => {
+          startPosition.value = splitPosition.value;
+          didDismissKeyboardInGesture.value = false;
+          savedSplitForKeyboard.value = -1;
+        })
+        .onUpdate((e) => {
+          const maxPos =
+            totalHeight.value - HANDLE_HEIGHT - MIN_PANE_HEIGHT;
+          const newPosition = startPosition.value + e.translationY;
+          const clamped = Math.min(Math.max(newPosition, MIN_PANE_HEIGHT), maxPos);
+          splitPosition.value = clamped;
+          if (
+            keyboardHeightSV.value > 0 &&
+            !didDismissKeyboardInGesture.value &&
+            clamped > totalHeight.value * KEYBOARD_OPEN_NOTES_MIN_FRACTION
+          ) {
+            didDismissKeyboardInGesture.value = true;
+            // Zero the shared value immediately so the subsequent `onEnd` snap
+            // resolution doesn't use the pre-dismiss keyboard reserve and snap
+            // the pane back into the keyboard-constrained range. The JS-side
+            // keyboard hide event will still fire and reconcile things.
+            keyboardHeightSV.value = 0;
+            runOnJS(dismissKeyboard)();
+          }
+          runOnJS(throttledBumpLayoutGeneration)();
+        })
+        .onEnd((e) => {
+          const snaps = resolveSnapPositions(
+            totalHeight.value,
+            keyboardHeightSV.value,
+          );
+          const target = pickSnapTarget(splitPosition.value, e.velocityY, snaps);
+          if (Math.abs(target - splitPosition.value) > 0.5) {
+            splitPosition.value = withTiming(target, {
+              duration: SNAP_MS,
+              easing: SNAP_EASING,
+            });
+            runOnJS(triggerHaptic)();
+          }
+          runOnJS(bumpLayoutGeneration)();
+        }),
+    [
+      bumpLayoutGeneration,
+      didDismissKeyboardInGesture,
+      dismissKeyboard,
+      keyboardHeightSV,
+      savedSplitForKeyboard,
+      splitPosition,
+      startPosition,
+      throttledBumpLayoutGeneration,
+      totalHeight,
+      triggerHaptic,
+    ],
+  );
 
   const topPaneStyle = useAnimatedStyle(() => ({
     height: splitPosition.value,

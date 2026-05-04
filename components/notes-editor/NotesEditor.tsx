@@ -120,11 +120,12 @@ export function NotesEditor() {
 
   useEffect(() => {
     if (!editorBlurRef) return;
-    editorBlurRef.current = () => {
+    const blur = () => {
       enrichedRef.current?.blur();
     };
+    editorBlurRef.current = blur;
     return () => {
-      if (editorBlurRef.current) editorBlurRef.current = null;
+      if (editorBlurRef.current === blur) editorBlurRef.current = null;
     };
   }, [editorBlurRef]);
 
@@ -198,10 +199,16 @@ export function NotesEditor() {
           0,
           Math.min(selectionCaretRef.current, plain.length),
         );
+        // Estimate caret Y from hard line breaks. Assumes each `\n`-delimited
+        // line renders at EDITOR_LINE_HEIGHT; soft-wrapped paragraphs (no `\n`)
+        // are reported as line 0 of the paragraph, so the scroll may lag for
+        // very long wrapping lines. Block height is used only as an upper clamp
+        // (the editor wrapper uses `flexGrow: 1`, so `bh / totalLines` would
+        // massively over-estimate per-line height and push the caret off the
+        // bottom of the block).
         const lineIndex = countNewlines(plain.slice(0, caret));
-        const totalLines = 1 + countNewlines(plain);
-        const avgLineH = Math.max(EDITOR_LINE_HEIGHT, bh / Math.max(1, totalLines));
-        const rawCaretY = by + EDITOR_CONTENT_TOP_PAD + lineIndex * avgLineH;
+        const rawCaretY =
+          by + EDITOR_CONTENT_TOP_PAD + lineIndex * EDITOR_LINE_HEIGHT;
         const caretY = Math.min(Math.max(rawCaretY, by), by + bh);
         ensurePointInScrollWindow(scrollRef, scrollYRef, caretY, {
           insetTop: FLOATING_HEADER_TOP_INSET,
@@ -230,6 +237,21 @@ export function NotesEditor() {
       scheduleDoubleRaf();
     }
   }, [scrollYRef, editorFocusedForToolbar]);
+
+  // When the toolbar visibility flips, cancel any in-flight caret scroll so
+  // its closure (which captured the old `accessoryAboveKeyboard`) can't fire.
+  useEffect(() => {
+    return () => {
+      if (caretScrollRafRef.current != null) {
+        cancelAnimationFrame(caretScrollRafRef.current);
+        caretScrollRafRef.current = null;
+      }
+      if (caretScrollTimeoutRef.current != null) {
+        clearTimeout(caretScrollTimeoutRef.current);
+        caretScrollTimeoutRef.current = null;
+      }
+    };
+  }, [editorFocusedForToolbar]);
 
   const handleEditorLayout = useCallback(
     (_e: LayoutChangeEvent) => {
@@ -374,9 +396,16 @@ export function NotesEditor() {
     const showSub = Keyboard.addListener(showEvt, (e) => {
       keyboardTopYRef.current = e.endCoordinates.screenY;
       applyKeyboardInset(e.endCoordinates.screenY);
-      if (focusedFieldRef.current === "title") scheduleScrollTargetIntoView(titleBlockRef);
-      else if (focusedFieldRef.current === "editor") scheduleScrollTargetIntoView(editorBlockRef);
-      else scheduleScrollTargetIntoView(titleBlockRef);
+      if (focusedFieldRef.current === "editor") {
+        // Scroll to the caret, not the whole editor block: for long notes the
+        // block bottom is far below the keyboard and a block-based scroll
+        // would pull the viewport off the caret.
+        requestCaretIntoView({
+          layoutDelayMs: Platform.OS === "ios" ? 64 : 100,
+        });
+      } else {
+        scheduleScrollTargetIntoView(titleBlockRef);
+      }
     });
 
     const hideSub = Keyboard.addListener(hideEvt, () => {
@@ -388,7 +417,7 @@ export function NotesEditor() {
       showSub.remove();
       hideSub.remove();
     };
-  }, [applyKeyboardInset, scheduleScrollTargetIntoView]);
+  }, [applyKeyboardInset, requestCaretIntoView, scheduleScrollTargetIntoView]);
 
   useEffect(() => {
     if (keyboardTopYRef.current != null) {
