@@ -1,4 +1,7 @@
-import { useSplitPaneLayoutGeneration } from '@/components/split-pane/SplitPaneLayoutContext';
+import {
+  useSplitPaneLayoutGeneration,
+  useTopPaneAtSmallestSnap,
+} from '@/components/split-pane/SplitPaneLayoutContext';
 import { useClampScrollWhenSplitChanges } from '@/lib/hooks/useClampScrollWhenSplitChanges';
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { StyleSheet, View, Text, Alert, Pressable, type NativeScrollEvent } from 'react-native';
@@ -66,6 +69,7 @@ export function BibleReader() {
   const paragraphYRef = useRef(0);
   const verseLocalYRef = useRef<Record<number, number>>({});
   const splitGeneration = useSplitPaneLayoutGeneration();
+  const topAtSmallestSnap = useTopPaneAtSmallestSnap();
   const { handleScroll: clampSplitScroll, handleContentSizeChange, handleLayout } =
     useClampScrollWhenSplitChanges(scrollRef, splitGeneration);
 
@@ -341,7 +345,9 @@ export function BibleReader() {
         </ScrollView>
 
         <ReaderEdgeFade edge="top" height={BIBLE_READER_TOP_FADE_HEIGHT} style={styles.topFade} />
-        <ReaderEdgeFade edge="bottom" height={BIBLE_READER_BOTTOM_FADE_HEIGHT} style={styles.bottomFade} />
+        {!topAtSmallestSnap && (
+          <ReaderEdgeFade edge="bottom" height={BIBLE_READER_BOTTOM_FADE_HEIGHT} style={styles.bottomFade} />
+        )}
 
         {isSelecting && (
           <View style={styles.selectionSideTapLayer} pointerEvents="box-none">
@@ -366,7 +372,7 @@ export function BibleReader() {
           </View>
         )}
 
-        {!isSelecting && (
+        {!isSelecting && !topAtSmallestSnap && (
           <View style={styles.navOverlay} pointerEvents="box-none">
             <ChapterNav
               hasPrev={hasPrev}
