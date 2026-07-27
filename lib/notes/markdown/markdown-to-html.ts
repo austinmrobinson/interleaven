@@ -28,3 +28,25 @@ export function noteContentToEditorHtml(raw: string): string {
   }
   return markdownToEnrichedHtml(raw);
 }
+
+/**
+ * Prepare HTML for `EnrichedTextInput.setValue` / `defaultValue`.
+ *
+ * iOS `initiallyProcessHtml` only treats strings with length ≥ 13 as HTML;
+ * shorter values (e.g. `<p></p>`, `<p>hi</p>`) are inserted as literal plain
+ * text. Wrapping in `<html>…</html>` always clears that threshold. Empty /
+ * placeholder-only bodies become `''` so the native placeholder shows.
+ */
+export function wrapForEnrichedSetValue(html: string): string {
+  const trimmed = html.trim();
+  if (
+    !trimmed ||
+    trimmed === '<p></p>' ||
+    trimmed === '<p><br></p>' ||
+    trimmed === '<br>'
+  ) {
+    return '';
+  }
+  if (/^<html[\s>]/i.test(trimmed)) return trimmed;
+  return `<html>${trimmed}</html>`;
+}

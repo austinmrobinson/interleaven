@@ -51,8 +51,9 @@ import {
   looksLikeLikelyHtml,
   markdownToEnrichedHtml,
   noteContentToEditorHtml,
+  wrapForEnrichedSetValue,
 } from "@/lib/notes/markdown";
-import { bookSerifFont } from "@/lib/typography";
+import { bookSerifFontFamily } from "@/lib/typography";
 import { FLOATING_HEADER_TOP_INSET } from "@/lib/layout/bible-reader-chrome";
 const TOOLBAR_SCROLL_EXTRA = 8;
 
@@ -298,7 +299,7 @@ export function NotesEditor() {
         try {
           const curMd = enrichedHtmlToMarkdownRaw(curHtml);
           const nextHtml = markdownToEnrichedHtml(curMd);
-          inst.setValue(nextHtml);
+          inst.setValue(wrapForEnrichedSetValue(nextHtml));
           bodyHtmlRef.current = nextHtml;
           requestAnimationFrame(() => {
             const c = Math.max(0, Math.min(hit.caret, plainTextRef.current.length));
@@ -361,7 +362,7 @@ export function NotesEditor() {
     const mdForRefs = raw.trim() && looksLikeLikelyHtml(raw) ? enrichedHtmlToMarkdown(raw) : raw;
     setVerseRefs(extractVerseRefsFromMarkdown(mdForRefs));
     liveMdSuppressRef.current = true;
-    enrichedRef.current?.setValue(html);
+    enrichedRef.current?.setValue(wrapForEnrichedSetValue(html));
     requestAnimationFrame(() => {
       liveMdSuppressRef.current = false;
     });
@@ -380,7 +381,7 @@ export function NotesEditor() {
           const curMd = enrichedHtmlToMarkdown(await inst.getHTML());
           const nextMd = curMd.trimEnd() + (curMd.trim() ? "\n\n" : "") + md.trim();
           const nextHtml = markdownToEnrichedHtml(nextMd);
-          inst.setValue(nextHtml);
+          inst.setValue(wrapForEnrichedSetValue(nextHtml));
           bodyHtmlRef.current = nextHtml;
           scheduleSave();
         },
@@ -450,7 +451,7 @@ export function NotesEditor() {
       const curMd = enrichedHtmlToMarkdown(html);
       const nextMd = curMd.trimEnd() + (curMd.trim() ? "\n\n" : "") + quoteMd.trimEnd();
       const nextHtml = markdownToEnrichedHtml(nextMd);
-      enrichedRef.current?.setValue(nextHtml);
+      enrichedRef.current?.setValue(wrapForEnrichedSetValue(nextHtml));
       bodyHtmlRef.current = nextHtml;
       save(titleRef.current, nextMd);
     });
@@ -597,7 +598,7 @@ export function NotesEditor() {
         >
           <EnrichedTextInput
             ref={enrichedRef}
-            defaultValue={EMPTY_NOTE_HTML}
+            defaultValue=""
             useHtmlNormalizer
             placeholder="Start writing..."
             placeholderTextColor={bookTheme.inkPlaceholder}
@@ -709,7 +710,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 24,
     color: bookTheme.ink,
-    fontFamily: bookSerifFont,
+    fontFamily: bookSerifFontFamily,
     paddingVertical: 4,
   },
 });
